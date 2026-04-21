@@ -15,24 +15,28 @@ export async function AppHeader() {
 
   return (
     <header className="relative z-20">
-      <div className="mx-auto max-w-[88rem] px-5 pt-5 sm:px-8 sm:pt-6 lg:px-10">
-        <div className="surface-strong flex flex-col gap-4 rounded-[1.8rem] border border-white/70 px-4 py-4 shadow-[0_22px_50px_rgba(15,23,42,0.08)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:rounded-full sm:px-5 sm:py-3">
-          <Link href="/" className="flex items-center gap-3 self-start">
+      <div className="mx-auto max-w-[90rem] px-4 pt-3 sm:px-6 sm:pt-6 lg:px-8 xl:px-10">
+        <div className="surface-strong flex flex-col gap-3 rounded-[1.55rem] border border-white/70 px-3.5 py-3 shadow-[0_22px_50px_rgba(15,23,42,0.08)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:rounded-full sm:px-5 sm:py-3">
+          <Link href="/" className="flex items-center gap-2.5 self-start sm:gap-3">
             <Logo />
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-slate-950">ProofPilot</div>
-              <div className="text-xs text-slate-500">Evidence-first complaints</div>
+              <div className="text-[13px] font-semibold leading-4 text-slate-950 sm:text-sm">
+                ProofPilot
+              </div>
+              <div className="text-[11px] leading-4 text-slate-500 sm:text-xs">
+                Evidence-first complaints
+              </div>
             </div>
           </Link>
 
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
+          <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:items-end sm:gap-3">
             {!configured ? (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 <Badge variant="warning">Needs Supabase env</Badge>
               </div>
             ) : null}
 
-            <nav className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <nav className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:justify-end sm:gap-2">
               {user ? (
                 <>
                   <ButtonLink href="/dashboard" variant="ghost" size="sm">
