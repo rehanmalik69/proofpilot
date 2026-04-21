@@ -43,6 +43,8 @@ export type ExtractedEvidenceText = {
   charCount: number;
 };
 
+export type AnalysisProvider = "groq" | "openai" | "mock" | "local";
+
 export type AnalysisScore = {
   evidence_strength: "weak" | "moderate" | "strong";
   urgency: "low" | "medium" | "high";
@@ -74,10 +76,14 @@ export type StructuredAnalysisPayload = {
 
 export type AnalysisOutput = {
   meta?: {
-    provider: "openai" | "mock" | "local";
+    provider: AnalysisProvider;
     model: string;
     generatedAt: string;
+    updatedAt?: string;
     basis: string;
+    engineVersion?: string;
+    fallbackTriggered?: boolean;
+    fallbackReason?: string;
   };
   summary?: string;
   score?: AnalysisScore;
@@ -105,4 +111,14 @@ export type AnalysisOutput = {
     closing: string;
   };
   rawOutput?: StructuredAnalysisPayload;
+};
+
+export type StoredAnalysisRecord = {
+  version: 1;
+  provider: AnalysisProvider;
+  generatedAt: string;
+  updatedAt: string;
+  engineVersion?: string;
+  fallbackReason?: string;
+  output: AnalysisOutput;
 };

@@ -15,9 +15,14 @@ import { cn, formatFileSize } from "@/lib/utils";
 type EvidenceUploadPanelProps = {
   caseId: string;
   className?: string;
+  inputId?: string;
 };
 
-export function EvidenceUploadPanel({ caseId, className }: EvidenceUploadPanelProps) {
+export function EvidenceUploadPanel({
+  caseId,
+  className,
+  inputId = "file",
+}: EvidenceUploadPanelProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -36,7 +41,7 @@ export function EvidenceUploadPanel({ caseId, className }: EvidenceUploadPanelPr
           onSubmit={() => setIsSubmitting(true)}
         >
           <label
-            htmlFor="file"
+            htmlFor={inputId}
             className="group flex cursor-pointer flex-col gap-3 rounded-[1.45rem] border border-dashed border-slate-300 bg-white px-4 py-5 text-[13px] transition hover:border-blue-300 hover:bg-blue-50/40 sm:gap-4 sm:rounded-[1.65rem] sm:px-5 sm:py-6 sm:text-sm"
           >
             <div className="flex items-start gap-3 sm:gap-4">
@@ -66,7 +71,7 @@ export function EvidenceUploadPanel({ caseId, className }: EvidenceUploadPanelPr
             </div>
 
             <input
-              id="file"
+              id={inputId}
               name="file"
               type="file"
               accept={EVIDENCE_ACCEPT_ATTRIBUTE}

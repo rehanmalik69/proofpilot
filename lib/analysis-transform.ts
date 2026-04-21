@@ -2,13 +2,12 @@ import { getCaseStatusLabel } from "@/lib/constants/case-status";
 import { normalizeIssueLanguage } from "@/lib/local-analysis-language";
 import type {
   AnalysisOutput,
+  AnalysisProvider,
   CaseRecord,
   EvidenceFileRecord,
   StructuredAnalysisPayload,
 } from "@/lib/types/domain";
 import { formatCurrency, formatDate } from "@/lib/utils";
-
-type AnalysisProvider = "openai" | "mock" | "local";
 
 type AnalysisTransformParams = {
   caseItem: CaseRecord;
@@ -17,6 +16,9 @@ type AnalysisTransformParams = {
   provider: AnalysisProvider;
   model: string;
   basis: string;
+  engineVersion?: string;
+  fallbackTriggered?: boolean;
+  fallbackReason?: string;
 };
 
 function normalizeText(value: string | null | undefined, fallback: string) {
@@ -175,6 +177,9 @@ export function createAnalysisOutputFromStructuredPayload({
   provider,
   model,
   basis,
+  engineVersion,
+  fallbackTriggered,
+  fallbackReason,
 }: AnalysisTransformParams): AnalysisOutput {
   const amountInDispute = normalizeText(
     payload.extracted_facts.amount_in_dispute,
@@ -205,6 +210,9 @@ export function createAnalysisOutputFromStructuredPayload({
       model,
       generatedAt: new Date().toISOString(),
       basis,
+      engineVersion,
+      fallbackTriggered,
+      fallbackReason,
     },
     score: payload.score,
     summary: normalizeText(payload.summary, "Structured analysis generated from the case record."),
@@ -213,7 +221,9 @@ export function createAnalysisOutputFromStructuredPayload({
       title: normalizeText(item.event, "Timeline event"),
       detail: inferTimelineDetail(item.event, index, evidenceCount),
       source:
-        provider === "openai"
+        provider === "groq"
+          ? "Groq analysis"
+          : provider === "openai"
           ? "OpenAI analysis"
           : provider === "local"
             ? "Local analysis engine"

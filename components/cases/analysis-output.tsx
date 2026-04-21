@@ -70,8 +70,14 @@ function formatLevel(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function getProviderBadge(provider?: NonNullable<AnalysisOutputType["meta"]>["provider"]) {
-  switch (provider) {
+function getProviderBadge(meta?: AnalysisOutputType["meta"]) {
+  if (meta?.provider === "local" && meta.fallbackTriggered) {
+    return { label: "Local engine fallback", variant: "warning" as const };
+  }
+
+  switch (meta?.provider) {
+    case "groq":
+      return { label: "Groq analysis", variant: "info" as const };
     case "local":
       return { label: "Local engine", variant: "info" as const };
     case "openai":
@@ -148,7 +154,7 @@ export function AnalysisOutput({
   const fullReportText = buildFullReportText({ analysis, caseTitle, caseStatusLabel });
   const isBusy =
     isCopyingDraft || isCopyingReport || isDownloadingDraft || isDownloading || isReanalyzing;
-  const providerBadge = getProviderBadge(analysis.meta?.provider);
+  const providerBadge = getProviderBadge(analysis.meta);
 
   const factRows = [
     {

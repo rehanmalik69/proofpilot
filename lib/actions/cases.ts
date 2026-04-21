@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { generateCaseAnalysis } from "@/lib/analysis-provider";
+import { createStoredAnalysisRecord } from "@/lib/analysis-storage";
 import { requireUser } from "@/lib/auth";
 import {
   CASE_STATUS_OPTIONS,
@@ -10,10 +12,11 @@ import {
 } from "@/lib/constants/case-status";
 import { extractEvidenceTexts } from "@/lib/evidence-text";
 import { withFlash } from "@/lib/flash";
-import { generateLocalCaseAnalysis } from "@/lib/local-analysis-engine";
 import type { CaseStatus } from "@/lib/constants/case-status";
-import type { EvidenceFileRecord, ExtractedEvidenceText } from "@/lib/types/domain";
+import type { Database } from "@/lib/types/database";
+import type { AnalysisOutput, EvidenceFileRecord, ExtractedEvidenceText } from "@/lib/types/domain";
 import { safeFileName } from "@/lib/utils";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 function redirectBack(pathname: string, tone: "error" | "success", message: string): never {
   redirect(withFlash(pathname, tone, message));
@@ -21,6 +24,73 @@ function redirectBack(pathname: string, tone: "error" | "success", message: stri
 
 function isMissingStatusColumnError(message?: string | null) {
   return Boolean(message?.toLowerCase().includes("status"));
+}
+
+async function saveLatestAnalysisRecord(
+  supabase: SupabaseClient<Database>,
+  caseId: string,
+  userId: string,
+  analysis: AnalysisOutput,
+) {
+  const persistedAt = new Date().toISOString();
+  const storedAnalysis = createStoredAnalysisRecord(analysis, persistedAt);
+  const { data: existingRows, error: existingError } = await supabase
+    .from("analyses")
+    .select("id")
+    .eq("case_id", caseId)
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (existingError) {
+    return { error: existingError };
+  }
+
+  if (existingRows && existingRows.length > 0) {
+    const latestRow = existingRows[0];
+    const { error: updateError } = await supabase
+      .from("analyses")
+      .update({
+        analysis_json: storedAnalysis,
+        updated_at: persistedAt,
+      })
+      .eq("id", latestRow.id)
+      .eq("user_id", userId);
+
+    if (updateError) {
+      return { error: updateError };
+    }
+
+    if (existingRows.length > 1) {
+      const duplicateIds = existingRows.slice(1).map((row) => row.id);
+      const { error: cleanupError } = await supabase
+        .from("analyses")
+        .delete()
+        .in("id", duplicateIds)
+        .eq("user_id", userId);
+
+      if (cleanupError) {
+        console.error("ProofPilot could not clean up duplicate analysis rows.", {
+          caseId,
+          userId,
+          duplicateIds,
+          cleanupError,
+        });
+      }
+    }
+
+    return { error: null };
+  }
+
+  const { error: insertError } = await supabase.from("analyses").insert({
+    case_id: caseId,
+    user_id: userId,
+    analysis_json: storedAnalysis,
+    created_at: persistedAt,
+    updated_at: persistedAt,
+  });
+
+  return { error: insertError };
 }
 
 const DEMO_CASE_STATUS: CaseStatus = "ready_to_submit";
@@ -199,20 +269,13 @@ export async function runAnalysisAction(formData: FormData) {
     });
   }
 
-  const { analysis, message } = await generateLocalCaseAnalysis({
+  const { analysis, message } = await generateCaseAnalysis({
     caseItem,
     evidenceFiles: evidenceFiles ?? [],
     extractedEvidenceTexts,
   });
 
-  const { error } = await supabase.from("analyses").upsert(
-    {
-      case_id: caseId,
-      user_id: user.id,
-      analysis_json: analysis,
-    },
-    { onConflict: "case_id" },
-  );
+  const { error } = await saveLatestAnalysisRecord(supabase, caseId, user.id, analysis);
 
   if (error) {
     redirectBack(`/cases/${caseId}`, "error", error.message || "Analysis could not be saved.");
@@ -354,19 +417,17 @@ export async function createDemoCaseAction() {
     });
   }
 
-  const { analysis } = await generateLocalCaseAnalysis({
+  const { analysis } = await generateCaseAnalysis({
     caseItem,
     evidenceFiles,
     extractedEvidenceTexts,
   });
 
-  const { error: analysisError } = await supabase.from("analyses").upsert(
-    {
-      case_id: caseItem.id,
-      user_id: user.id,
-      analysis_json: analysis,
-    },
-    { onConflict: "case_id" },
+  const { error: analysisError } = await saveLatestAnalysisRecord(
+    supabase,
+    caseItem.id,
+    user.id,
+    analysis,
   );
 
   revalidatePath(`/cases/${caseItem.id}`);

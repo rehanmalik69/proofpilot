@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { readStoredAnalysisRecord } from "@/lib/analysis-storage";
 import { normalizeCaseStatus } from "@/lib/constants/case-status";
 import type {
   AnalysisOutput,
@@ -188,7 +189,7 @@ export async function getCaseDetail(userId: string, caseId: string): Promise<{
     return null;
   }
 
-  const [{ data: evidenceFiles }, { data: analysisRow }] = await Promise.all([
+  const [{ data: evidenceFiles }, { data: analysisRows }] = await Promise.all([
     supabase
       .from("evidence_files")
       .select("*")
@@ -197,13 +198,23 @@ export async function getCaseDetail(userId: string, caseId: string): Promise<{
       .order("created_at", { ascending: false }),
     supabase
       .from("analyses")
-      .select("*")
+      .select("id, analysis_json, updated_at, created_at")
       .eq("case_id", caseId)
       .eq("user_id", userId)
       .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .order("created_at", { ascending: false })
+      .limit(5),
   ]);
+
+  const latestAnalysisRow = analysisRows?.[0] ?? null;
+
+  if ((analysisRows?.length ?? 0) > 1) {
+    console.error("Multiple analysis rows found for a single case. ProofPilot is using the latest row.", {
+      caseId,
+      userId,
+      analysisRowIds: analysisRows?.map((row) => row.id),
+    });
+  }
 
   const signedFiles = await Promise.all(
     (evidenceFiles ?? []).map(async (file) => {
@@ -221,6 +232,11 @@ export async function getCaseDetail(userId: string, caseId: string): Promise<{
   return {
     caseItem: normalizeCaseRecord(caseItem as CaseRecord),
     evidenceFiles: signedFiles,
-    analysis: (analysisRow?.analysis_json as AnalysisOutput | null) ?? null,
+    analysis: latestAnalysisRow
+      ? (readStoredAnalysisRecord(
+          latestAnalysisRow.analysis_json,
+          latestAnalysisRow.updated_at,
+        ) as AnalysisOutput | null)
+      : null,
   };
 }
