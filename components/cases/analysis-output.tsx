@@ -332,18 +332,18 @@ export function AnalysisOutput({
                 </div>
               </div>
 
-              <div className="flex w-full max-w-2xl flex-col gap-3 xl:items-end">
+              <div className="flex w-full max-w-3xl flex-col gap-3 xl:items-end">
                 <div className="w-full rounded-[1.5rem] border border-slate-200/80 bg-white/88 p-3">
                   <div className="flex flex-col gap-3">
                     <div className={sectionLabelClass}>Workspace actions</div>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="flex flex-wrap items-stretch gap-3">
                       <Button
                         type="button"
                         variant="secondary"
                         size="sm"
                         disabled={isBusy}
                         onClick={handleDownloadComplaint}
-                        className="w-full justify-center md:min-w-[10.5rem]"
+                        className="w-full justify-center sm:flex-1 sm:min-w-[12rem] lg:w-auto lg:flex-none"
                       >
                         <Download className="size-4" />
                         {isDownloadingDraft ? "Preparing..." : "Download complaint"}
@@ -354,7 +354,7 @@ export function AnalysisOutput({
                         size="sm"
                         disabled={isBusy}
                         onClick={handleDownloadSummary}
-                        className="w-full justify-center md:min-w-[10.5rem]"
+                        className="w-full justify-center sm:flex-1 sm:min-w-[12rem] lg:w-auto lg:flex-none"
                       >
                         <Download className="size-4" />
                         {isDownloading ? "Preparing..." : "Download summary"}
@@ -365,12 +365,16 @@ export function AnalysisOutput({
                         size="sm"
                         disabled={isBusy}
                         onClick={handleCopyFullReport}
-                        className="w-full justify-center md:min-w-[10.5rem]"
+                        className="w-full justify-center sm:flex-1 sm:min-w-[12rem] lg:w-auto lg:flex-none"
                       >
                         <ClipboardCheck className="size-4" />
                         {isCopyingReport ? "Copying..." : "Copy full report"}
                       </Button>
-                      <form action={runAnalysisAction} onSubmit={() => setIsReanalyzing(true)} className="w-full">
+                      <form
+                        action={runAnalysisAction}
+                        onSubmit={() => setIsReanalyzing(true)}
+                        className="w-full sm:flex-1 sm:min-w-[12rem] lg:w-auto lg:flex-none"
+                      >
                         <input type="hidden" name="caseId" value={caseId} />
                         <SubmitButton
                           label="Re-analyze"
@@ -378,7 +382,7 @@ export function AnalysisOutput({
                           iconName="refresh"
                           size="sm"
                           disabled={isBusy}
-                          className="w-full justify-center md:min-w-[10.5rem]"
+                          className="w-full justify-center"
                         />
                       </form>
                     </div>
