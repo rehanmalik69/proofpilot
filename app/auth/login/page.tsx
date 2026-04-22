@@ -1,12 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Shield, Sparkles } from "lucide-react";
+import { LoginCard } from "@/components/auth/login-card";
 import { SetupRequired } from "@/components/shared/setup-required";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Notice } from "@/components/ui/notice";
-import { SubmitButton } from "@/components/ui/submit-button";
-import { loginAction } from "@/lib/actions/auth";
+import type { AuthActionNotice } from "@/lib/actions/auth";
 import { getSessionContext } from "@/lib/auth";
 import { getFlashMessage } from "@/lib/flash";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -14,6 +11,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 type LoginPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
+
+type AuthSearchParams = Record<string, string | string[] | undefined>;
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (!isSupabaseConfigured()) {
@@ -24,13 +23,39 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     );
   }
 
-  const [{ user }, notice] = await Promise.all([
+  const [{ user }, notice, resolvedSearchParams] = await Promise.all([
     getSessionContext(),
     getFlashMessage(searchParams),
+    searchParams ?? Promise.resolve<AuthSearchParams>({}),
   ]);
 
   if (user) {
     redirect("/dashboard");
+  }
+
+  const emailParam =
+    typeof resolvedSearchParams.email === "string" ? resolvedSearchParams.email : "";
+  const verifiedParam =
+    typeof resolvedSearchParams.verified === "string" ? resolvedSearchParams.verified : "";
+  const verificationParam =
+    typeof resolvedSearchParams.verification === "string"
+      ? resolvedSearchParams.verification
+      : "";
+
+  let initialNotice: AuthActionNotice | null = notice;
+
+  if (!initialNotice && verifiedParam === "1") {
+    initialNotice = {
+      tone: "success",
+      message: "Your email has been verified. Sign in to continue.",
+    };
+  }
+
+  if (!initialNotice && verificationParam === "expired") {
+    initialNotice = {
+      tone: "warning",
+      message: "Your verification link is invalid or has expired. Request a new email below.",
+    };
   }
 
   return (
@@ -64,35 +89,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       </div>
 
       <div className="surface-strong rounded-[2rem] border border-white/80 p-6 sm:p-8 xl:p-10">
-        <div className="space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-            ProofPilot Login
-          </p>
-          <h2 className="text-3xl font-semibold tracking-[-0.03em] text-slate-950">
-            Welcome back
-          </h2>
-          <p className="text-sm leading-7 text-slate-600">
-            Sign in to view your cases and generate evidence summaries.
-          </p>
-        </div>
-
-        {notice ? <Notice tone={notice.tone} className="mt-6" message={notice.message} /> : null}
-
-        <form action={loginAction} className="mt-8 space-y-5">
-          <Field label="Email" htmlFor="email">
-            <Input id="email" name="email" type="email" placeholder="you@example.com" required />
-          </Field>
-          <Field label="Password" htmlFor="password">
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Enter your password"
-              required
-            />
-          </Field>
-          <SubmitButton className="w-full sm:w-auto sm:min-w-[10rem]" label="Sign in" pendingLabel="Signing in..." />
-        </form>
+        <LoginCard initialEmail={emailParam} initialNotice={initialNotice} />
 
         <p className="mt-6 text-sm text-slate-600">
           Need an account?{" "}

@@ -1,7 +1,7 @@
 import type { Database } from "@/lib/types/database";
 import type { CaseStatus } from "@/lib/constants/case-status";
 
-export type NoticeTone = "error" | "success" | "info";
+export type NoticeTone = "error" | "success" | "info" | "warning";
 
 export type CaseRecord = Database["public"]["Tables"]["cases"]["Row"];
 export type EvidenceFileRecord = Database["public"]["Tables"]["evidence_files"]["Row"];

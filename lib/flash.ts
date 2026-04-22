@@ -8,7 +8,7 @@ export async function getFlashMessage(
 ) {
   const params = searchParams ? await searchParams : {};
 
-  const priority: NoticeTone[] = ["error", "success", "info"];
+  const priority: NoticeTone[] = ["error", "warning", "success", "info"];
 
   for (const tone of priority) {
     const value = params[tone];
