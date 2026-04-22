@@ -18,6 +18,37 @@ function getFailureReason(message?: string | null) {
   return "failed";
 }
 
+function isSessionExchangeRecoveryError(message?: string | null) {
+  const normalized = message?.toLowerCase().trim() ?? "";
+
+  return (
+    normalized.includes("code verifier") ||
+    normalized.includes("bad_code_verifier") ||
+    normalized.includes("flow state") ||
+    normalized.includes("exchange code") ||
+    normalized.includes("auth code") ||
+    normalized.includes("pkce")
+  );
+}
+
+function getFailureReasonFromParams(searchParams: URLSearchParams) {
+  const normalized = [
+    searchParams.get("error"),
+    searchParams.get("error_code"),
+    searchParams.get("error_description"),
+    searchParams.get("message"),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  return getFailureReason(normalized);
+}
+
 function createRedirect(request: NextRequest, pathname: string, email?: string | null) {
   const redirectUrl = request.nextUrl.clone();
   redirectUrl.pathname = pathname;
@@ -37,6 +68,13 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type") as EmailOtpType | null;
   const email = searchParams.get("email");
   const next = getSafeNextPath(searchParams.get("next"), "/auth/verified");
+  const explicitFailureReason = getFailureReasonFromParams(searchParams);
+
+  if (explicitFailureReason) {
+    const fallbackUrl = createRedirect(request, "/auth/verification-error", email);
+    fallbackUrl.searchParams.set("reason", explicitFailureReason);
+    return NextResponse.redirect(fallbackUrl);
+  }
 
   const supabase = await createServerSupabaseClient();
 
@@ -68,9 +106,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(createRedirect(request, next, email));
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user?.email_confirmed_at || user?.confirmed_at || isSessionExchangeRecoveryError(error.message)) {
+      return NextResponse.redirect(createRedirect(request, next, email ?? user?.email ?? null));
+    }
+
     const fallbackUrl = createRedirect(request, "/auth/verification-error", email);
     fallbackUrl.searchParams.set("reason", getFailureReason(error.message));
     return NextResponse.redirect(fallbackUrl);
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user?.email_confirmed_at || user?.confirmed_at) {
+    return NextResponse.redirect(createRedirect(request, next, email ?? user.email ?? null));
   }
 
   const fallbackUrl = createRedirect(request, "/auth/verification-error", email);
