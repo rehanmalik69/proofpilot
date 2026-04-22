@@ -30,6 +30,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   ]);
 
   if (user) {
+    console.log("user daa",user);
+    
     redirect("/dashboard");
   }
 

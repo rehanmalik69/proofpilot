@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { VerificationPanel } from "@/components/auth/verification-panel";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { type AuthActionNotice, resendVerificationEmailAction } from "@/lib/actions/auth";
@@ -9,6 +9,9 @@ type VerificationFailureCardProps = {
   email?: string;
   reason: "expired" | "failed";
 };
+
+const RESEND_COOLDOWN_MS = 5_000;
+const RATE_LIMIT_COOLDOWN_MS = 20_000;
 
 const reasonCopy = {
   expired: {
@@ -30,19 +33,49 @@ export function VerificationFailureCard({
   reason,
 }: VerificationFailureCardProps) {
   const [feedback, setFeedback] = useState<AuthActionNotice | null>(null);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [isPending, startTransition] = useTransition();
   const copy = reasonCopy[reason];
 
+  useEffect(() => {
+    if (!cooldownUntil) {
+      setCooldownSeconds(0);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      setCooldownSeconds(remaining);
+      if (remaining === 0) {
+        setCooldownUntil(null);
+      }
+    };
+
+    updateCountdown();
+    const interval = window.setInterval(updateCountdown, 250);
+    return () => window.clearInterval(interval);
+  }, [cooldownUntil]);
+
+  function startCooldown(durationMs: number) {
+    setCooldownUntil(Date.now() + durationMs);
+  }
+
   async function handleResend() {
-    if (!email) {
+    if (!email || isPending || cooldownSeconds > 0) {
       return;
     }
 
     setFeedback(null);
+    startCooldown(RESEND_COOLDOWN_MS);
 
     startTransition(async () => {
       const result = await resendVerificationEmailAction({ email });
       setFeedback(result.notice ?? null);
+
+      if (result.status === "rate_limited") {
+        startCooldown(RATE_LIMIT_COOLDOWN_MS);
+      }
     });
   }
 
@@ -74,10 +107,14 @@ export function VerificationFailureCard({
               type="button"
               variant="secondary"
               className="w-full sm:w-auto"
-              disabled={isPending || !email}
+              disabled={isPending || cooldownSeconds > 0 || !email}
               onClick={handleResend}
             >
-              {isPending ? "Sending..." : "Resend verification email"}
+              {isPending
+                ? "Sending..."
+                : cooldownSeconds > 0
+                  ? "Please wait..."
+                  : "Resend verification email"}
             </Button>
             <ButtonLink
               href={email ? `/auth/login?email=${encodeURIComponent(email)}` : "/auth/login"}

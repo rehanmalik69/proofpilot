@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { type AuthActionNotice, resendVerificationEmailAction } from "@/lib/actions/auth";
 import { VerificationPanel } from "@/components/auth/verification-panel";
@@ -10,16 +10,53 @@ type CheckEmailCardProps = {
   email: string;
 };
 
+const RESEND_COOLDOWN_MS = 5_000;
+const RATE_LIMIT_COOLDOWN_MS = 20_000;
+
 export function CheckEmailCard({ email }: CheckEmailCardProps) {
   const [feedback, setFeedback] = useState<AuthActionNotice | null>(null);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [isPending, startTransition] = useTransition();
 
+  useEffect(() => {
+    if (!cooldownUntil) {
+      setCooldownSeconds(0);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      setCooldownSeconds(remaining);
+      if (remaining === 0) {
+        setCooldownUntil(null);
+      }
+    };
+
+    updateCountdown();
+    const interval = window.setInterval(updateCountdown, 250);
+    return () => window.clearInterval(interval);
+  }, [cooldownUntil]);
+
+  function startCooldown(durationMs: number) {
+    setCooldownUntil(Date.now() + durationMs);
+  }
+
   async function handleResend() {
+    if (isPending || cooldownSeconds > 0) {
+      return;
+    }
+
     setFeedback(null);
+    startCooldown(RESEND_COOLDOWN_MS);
 
     startTransition(async () => {
       const result = await resendVerificationEmailAction({ email });
       setFeedback(result.notice ?? null);
+
+      if (result.status === "rate_limited") {
+        startCooldown(RATE_LIMIT_COOLDOWN_MS);
+      }
     });
   }
 
@@ -50,10 +87,14 @@ export function CheckEmailCard({ email }: CheckEmailCardProps) {
               type="button"
               variant="secondary"
               className="w-full sm:w-auto"
-              disabled={isPending}
+              disabled={isPending || cooldownSeconds > 0}
               onClick={handleResend}
             >
-              {isPending ? "Sending..." : "Resend verification email"}
+              {isPending
+                ? "Sending..."
+                : cooldownSeconds > 0
+                  ? "Please wait..."
+                  : "Resend verification email"}
             </Button>
             <ButtonLink
               href={`/auth/login?email=${encodeURIComponent(email)}`}

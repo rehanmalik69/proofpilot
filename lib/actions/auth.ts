@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getVerificationEmailRedirect } from "@/lib/auth-url";
+import { SIGNUP_RATE_LIMIT_COPY } from "@/lib/constants/auth-messages";
 import type { NoticeTone } from "@/lib/types/domain";
 import { withFlash } from "@/lib/flash";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -32,13 +33,13 @@ export type LoginActionResult = {
 };
 
 export type SignupActionResult = {
-  status: "idle" | "error" | "pending_verification" | "authenticated";
+  status: "idle" | "error" | "rate_limited" | "pending_verification" | "authenticated";
   email?: string;
   notice?: AuthActionNotice | null;
 };
 
 export type VerificationResendResult = {
-  status: "idle" | "error" | "success";
+  status: "idle" | "error" | "rate_limited" | "success";
   email?: string;
   notice?: AuthActionNotice | null;
 };
@@ -70,10 +71,25 @@ function isRateLimitedError(message?: string | null) {
   const normalized = message?.toLowerCase().trim() ?? "";
 
   return (
+    normalized.includes("429") ||
+    normalized.includes("email rate limit exceeded") ||
     normalized.includes("rate limit") ||
     normalized.includes("too many requests") ||
     normalized.includes("security purposes")
   );
+}
+
+function logAuthProviderError(scope: string, error: unknown) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  if (error && typeof error === "object" && "message" in error) {
+    console.error(`[supabase auth ${scope}]`, error);
+    return;
+  }
+
+  console.error(`[supabase auth ${scope}]`, { error });
 }
 
 function getFriendlyLoginError(message?: string | null) {
@@ -116,8 +132,8 @@ function getResendFailureNotice(message?: string | null) {
   if (isRateLimitedError(message)) {
     return createNotice(
       "warning",
-      "We could not resend the verification email. Please try again in a moment.",
-      "Too many resend requests were made recently. Wait a moment before trying again.",
+      SIGNUP_RATE_LIMIT_COPY.title,
+      SIGNUP_RATE_LIMIT_COPY.body,
     );
   }
 
@@ -183,6 +199,16 @@ export async function signupAction({
   });
 
   if (error) {
+    logAuthProviderError("signup", error);
+
+    if (isRateLimitedError(error.message)) {
+      return {
+        status: "rate_limited",
+        email: normalizedEmail,
+        notice: createNotice("warning", SIGNUP_RATE_LIMIT_COPY.title, SIGNUP_RATE_LIMIT_COPY.body),
+      };
+    }
+
     return {
       status: "error",
       email: normalizedEmail,
@@ -279,6 +305,16 @@ export async function resendVerificationEmailAction({
   });
 
   if (error) {
+    logAuthProviderError("resend", error);
+
+    if (isRateLimitedError(error.message)) {
+      return {
+        status: "rate_limited",
+        email: normalizedEmail,
+        notice: createNotice("warning", SIGNUP_RATE_LIMIT_COPY.title, SIGNUP_RATE_LIMIT_COPY.body),
+      };
+    }
+
     return {
       status: "error",
       email: normalizedEmail,

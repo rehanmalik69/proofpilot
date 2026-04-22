@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState, useTransition } from "react";
+import { type FormEvent, useEffect, useState, useTransition } from "react";
+import { RateLimitPanel } from "@/components/auth/rate-limit-panel";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -12,17 +13,65 @@ type SignupCardProps = {
   initialNotice?: AuthActionNotice | null;
 };
 
+const SUBMIT_COOLDOWN_MS = 3_500;
+const RATE_LIMIT_COOLDOWN_MS = 20_000;
+
 export function SignupCard({ initialNotice = null }: SignupCardProps) {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [notice, setNotice] = useState<AuthActionNotice | null>(initialNotice);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!cooldownUntil) {
+      setCooldownSeconds(0);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      setCooldownSeconds(remaining);
+      if (remaining === 0) {
+        setCooldownUntil(null);
+      }
+    };
+
+    updateCountdown();
+    const interval = window.setInterval(updateCountdown, 250);
+    return () => window.clearInterval(interval);
+  }, [cooldownUntil]);
+
+  function startCooldown(durationMs: number) {
+    setCooldownUntil(Date.now() + durationMs);
+  }
+
+  function resetToForm(clearEmail = false) {
+    setIsRateLimited(false);
+    setNotice(null);
+    setCooldownUntil(null);
+
+    if (clearEmail) {
+      setEmail("");
+      setPassword("");
+      setFullName("");
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isPending || cooldownSeconds > 0) {
+      return;
+    }
+
     setNotice(null);
+    setIsRateLimited(false);
+    startCooldown(SUBMIT_COOLDOWN_MS);
 
     startTransition(async () => {
       const result = await signupAction({ fullName, email, password });
@@ -35,6 +84,13 @@ export function SignupCard({ initialNotice = null }: SignupCardProps) {
 
       if (result.status === "pending_verification") {
         router.replace(`/auth/check-email?email=${encodeURIComponent(result.email ?? email)}`);
+        return;
+      }
+
+      if (result.status === "rate_limited") {
+        setIsRateLimited(true);
+        setNotice(result.notice ?? null);
+        startCooldown(RATE_LIMIT_COOLDOWN_MS);
         return;
       }
 
@@ -56,7 +112,13 @@ export function SignupCard({ initialNotice = null }: SignupCardProps) {
         </p>
       </div>
 
-      {notice ? (
+      {isRateLimited ? (
+        <RateLimitPanel
+          cooldownSeconds={cooldownSeconds}
+          onTryAgainLater={() => resetToForm(false)}
+          onUseDifferentEmail={() => resetToForm(true)}
+        />
+      ) : notice ? (
         <Notice
           tone={notice.tone}
           className="mt-6"
@@ -65,7 +127,8 @@ export function SignupCard({ initialNotice = null }: SignupCardProps) {
         />
       ) : null}
 
-      <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+      {!isRateLimited ? (
+        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
         <Field label="Full name" htmlFor="fullName" hint="Used for your profile only.">
           <Input
             id="fullName"
@@ -101,10 +164,15 @@ export function SignupCard({ initialNotice = null }: SignupCardProps) {
             autoComplete="new-password"
           />
         </Field>
-        <Button type="submit" className="w-full sm:w-auto sm:min-w-[12rem]" disabled={isPending}>
-          {isPending ? "Creating..." : "Create account"}
+        <Button
+          type="submit"
+          className="w-full sm:w-auto sm:min-w-[12rem]"
+          disabled={isPending || cooldownSeconds > 0}
+        >
+          {isPending ? "Creating..." : cooldownSeconds > 0 ? "Please wait..." : "Create account"}
         </Button>
-      </form>
+        </form>
+      ) : null}
     </>
   );
 }
