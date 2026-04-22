@@ -2,6 +2,8 @@
 
 ProofPilot is a premium evidence-first complaint workspace for consumer disputes and small claims.
 
+Live app: [https://proofpilot-three.vercel.app/](https://proofpilot-three.vercel.app/)
+
 It helps a user turn scattered receipts, screenshots, PDFs, support messages, and notes into a structured case file with:
 
 - a clean timeline
@@ -11,6 +13,11 @@ It helps a user turn scattered receipts, screenshots, PDFs, support messages, an
 - export-ready case summaries
 
 The product is built as a responsive Next.js web app with Supabase for auth, data, and storage, plus a provider-based analysis layer that prefers Groq when configured and safely falls back to ProofPilot's local rules-based engine.
+
+## Live Demo
+
+- Production app: [https://proofpilot-three.vercel.app/](https://proofpilot-three.vercel.app/)
+- GitHub repository: [https://github.com/rehanmalik69/proofpilot](https://github.com/rehanmalik69/proofpilot)
 
 ## What ProofPilot Does
 
