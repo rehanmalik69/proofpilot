@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getVerificationEmailRedirect } from "@/lib/auth-url";
 import type { NoticeTone } from "@/lib/types/domain";
 import { withFlash } from "@/lib/flash";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -85,13 +86,13 @@ function getFriendlyLoginError(message?: string | null) {
   ) {
     return createNotice(
       "error",
-      "We couldn’t sign you in with those details. Double-check your email and password, then try again.",
+      "We couldn't sign you in with those details. Double-check your email and password, then try again.",
     );
   }
 
   return createNotice(
     "error",
-    "We couldn’t sign you in right now. Please try again in a moment.",
+    "We couldn't sign you in right now. Please try again in a moment.",
   );
 }
 
@@ -107,7 +108,7 @@ function getFriendlySignupError(message?: string | null) {
 
   return createNotice(
     "error",
-    "We couldn’t create your account right now. Please try again in a moment.",
+    "We couldn't create your account right now. Please try again in a moment.",
   );
 }
 
@@ -132,10 +133,7 @@ async function getSupabaseOrError() {
   if (!supabase) {
     return {
       supabase: null,
-      notice: createNotice(
-        "error",
-        "Supabase environment variables are not configured.",
-      ),
+      notice: createNotice("error", "Supabase environment variables are not configured."),
     };
   }
 
@@ -171,10 +169,13 @@ export async function signupAction({
     return { status: "error", email: normalizedEmail, notice };
   }
 
+  const emailRedirectTo = await getVerificationEmailRedirect(normalizedEmail);
+
   const { data, error } = await supabase.auth.signUp({
     email: normalizedEmail,
     password,
     options: {
+      emailRedirectTo: emailRedirectTo ?? undefined,
       data: {
         full_name: fullName.trim() || null,
       },
@@ -267,9 +268,14 @@ export async function resendVerificationEmailAction({
     return { status: "error", email: normalizedEmail, notice };
   }
 
+  const emailRedirectTo = await getVerificationEmailRedirect(normalizedEmail);
+
   const { error } = await supabase.auth.resend({
     type: "signup",
     email: normalizedEmail,
+    options: {
+      emailRedirectTo: emailRedirectTo ?? undefined,
+    },
   });
 
   if (error) {

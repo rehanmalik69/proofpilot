@@ -35,6 +35,7 @@ Instead of keeping everything in scattered folders and message threads, the app 
 ## Demo-Ready Highlights
 
 - Email/password authentication with Supabase Auth
+- End-to-end email verification flow with in-app success and recovery screens
 - Case dashboard with metrics, recent activity, and one-click demo case creation
 - Rich case workspace with premium responsive UI
 - Evidence uploads to Supabase Storage
@@ -49,6 +50,14 @@ Instead of keeping everything in scattered folders and message threads, the app 
 ### 1. Landing and Authentication
 
 Users land on a polished startup-style homepage, then sign up or log in with Supabase Auth.
+
+Email verification stays inside ProofPilot:
+
+- signup sends users to `Check your email`
+- verification links return to `/auth/callback`
+- successful confirmations land on `/auth/verified`
+- expired or failed links land on `/auth/verification-error`
+- resend actions issue fresh ProofPilot verification links instead of dropping users onto localhost or a blank provider screen
 
 ### 2. Dashboard
 
@@ -149,6 +158,7 @@ Create a `.env.local` file in the project root.
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_APP_URL=https://proofpilot-three.vercel.app
 GROQ_API_KEY=your_groq_api_key
 GROQ_MODEL=openai/gpt-oss-20b
 ```
@@ -159,6 +169,7 @@ GROQ_MODEL=openai/gpt-oss-20b
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase browser anon key |
+| `NEXT_PUBLIC_APP_URL` | Recommended for production | Canonical app origin used for auth email redirects |
 | `GROQ_API_KEY` | Optional | Enables Groq as the primary analysis provider |
 | `GROQ_MODEL` | Optional | Overrides the default Groq model |
 
@@ -184,6 +195,8 @@ In Supabase:
 2. enable Email/Password auth
 3. open the SQL editor
 4. run [`supabase/schema.sql`](./supabase/schema.sql)
+5. add your app domain to the Supabase Auth URL configuration
+6. make sure verification emails return to your ProofPilot domain
 
 ### 4. Start the app
 
@@ -249,8 +262,12 @@ Evidence records are stored in the `evidence-files` bucket and linked back to th
 ```text
 app/
   auth/
+    callback/
+    check-email/
     login/
     signup/
+    verification-error/
+    verified/
   dashboard/
   cases/
     new/
@@ -290,8 +307,13 @@ supabase/
 
 | File | Responsibility |
 |---|---|
+| `app/auth/callback/route.ts` | Handles Supabase verification redirects and exchanges auth tokens for a session |
+| `app/auth/verified/page.tsx` | Success screen after email verification |
+| `app/auth/verification-error/page.tsx` | Recovery screen for expired or failed verification links |
 | `app/cases/[id]/page.tsx` | Main case workspace |
 | `lib/actions/cases.ts` | Case creation, demo case creation, analysis execution, status updates |
+| `lib/actions/auth.ts` | Login, signup, resend verification, recheck verification, logout |
+| `lib/auth-url.ts` | Builds the canonical app-origin verification callback URLs |
 | `lib/queries.ts` | Dashboard and case data reads |
 | `lib/analysis-provider.ts` | Groq-first provider orchestration with local fallback |
 | `lib/analysis-storage.ts` | Canonical read/write format for persisted analyses |
