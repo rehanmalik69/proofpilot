@@ -1,4 +1,4 @@
-# ProofPilot, Explained Simply
+# ProofPilot
 
 ## 1. Concept
 ProofPilot is a website that helps someone organize proof when they have a problem with a company, like a refund, damaged order, bad service, or billing mistake. It lets them create a case, upload receipts or messages, and keep everything in one clean place.
